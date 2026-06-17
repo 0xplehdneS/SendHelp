@@ -152,7 +152,7 @@ d = regedit
 
 ### **Run-RegistryQuery**
 Extracts registry values from a specified key for triage and investigation purposes. Avoid using `HKEY_CURRENT_USER`, since it is context-dependent. In MDE Live Response, 
-it points to the user context of the process/session that Live Response is using (nt authority\system).
+it points to the user context of the process/session that Live Response is using (`nt authority\system`).
 ```powershell
 run Sendhelp "Run-RegistryQuery <registry_key>"
 ```
