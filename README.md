@@ -18,7 +18,6 @@ PowerShell incident response and triage helper toolkit. Upload the file in MDE's
 Diplays currect version.
 ```powershell
 C:\> run SendHelp Get-Version
-Transcript started, output file is C:\ProgramData\Microsoft\Windows Defender Advanced Threat Protection\Temp\PSScriptOutputs\PSScript_Transcript_{9387BA8D-88A3-4725-BA4F-D84876C7F82C}.txt
 _________________________________________
 
 Roger that. Cooking output (robot noises) 
