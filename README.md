@@ -14,6 +14,35 @@ PowerShell incident response and triage helper toolkit. Upload the file in MDE's
 
 
 ## Usage
+### **Get-Version**
+Diplays currect version.
+```powershell
+C:\> run SendHelp Get-Version
+Transcript started, output file is C:\ProgramData\Microsoft\Windows Defender Advanced Threat Protection\Temp\PSScriptOutputs\PSScript_Transcript_{9387BA8D-88A3-4725-BA4F-D84876C7F82C}.txt
+_________________________________________
+
+Roger that. Cooking output (robot noises) 
+_________________________________________
+
+      ___           ___           ___           ___           ___           ___           ___       ___     
+     /\  \         /\  \         /\__\         /\  \         /\__\         /\  \         /\__\     /\  \    
+    /::\  \       /::\  \       /::|  |       /::\  \       /:/  /        /::\  \       /:/  /    /::\  \   
+   /:/\ \  \     /:/\:\  \     /:|:|  |      /:/\:\  \     /:/__/        /:/\:\  \     /:/  /    /:/\:\  \  
+  _\:\~\ \  \   /::\~\:\  \   /:/|:|  |__   /:/  \:\__\   /::\  \ ___   /::\~\:\  \   /:/  /    /::\~\:\  \ 
+ /\ \:\ \ \__\ /:/\:\ \:\__\ /:/ |:| /\__\ /:/__/ \:|__| /:/\:\  /\__\ /:/\:\ \:\__\ /:/__/    /:/\:\ \:\__\
+ \:\ \:\ \/__/ \:\~\:\ \/__/ \/__|:|/:/  / \:\  \ /:/  / \/__\:\/:/  / \:\~\:\ \/__/ \:\  \    \/__\:\/:/  /
+  \:\ \:\__\    \:\ \:\__\       |:/:/  /   \:\  /:/  /       \::/  /   \:\ \:\__\    \:\  \        \::/  / 
+   \:\/:/  /     \:\ \/__/       |::/  /     \:\/:/  /        /:/  /     \:\ \/__/     \:\  \        \/__/  
+    \::/  /       \:\__\         /:/  /       \::/__/        /:/  /       \:\__\        \:\__\              
+     \/__/         \/__/         \/__/         ~~            \/__/         \/__/         \/__/                                         
+ 
+ [+] Multi-Function Response Utility
+ [+] v17/6/2026
+ [+] Author: Thomas Papaloukas
+```
+
+<br>
+
 ### **Run-Command**
 Used for running simple PowerShell commands.
 ```powershell
