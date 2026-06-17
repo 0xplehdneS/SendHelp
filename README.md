@@ -233,7 +233,7 @@ No prefetch files found matching: malware
 ### **Run-Processes**
 Enumerates running processes.
 ```powershell
-run Sendhelp "Run-Processes
+run Sendhelp Run-Processes
 ```
 Example output:
 ```powershell
