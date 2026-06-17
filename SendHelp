@@ -1,0 +1,315 @@
+param (
+    [Parameter(Mandatory=$true, Position=0)]
+    [string]$FunctionName,
+
+    [Parameter(Position=1)]
+    [string]$Command,
+
+    [Parameter(Position=2, ValueFromRemainingArguments=$true)]
+    [string[]]$CommandArgs
+)
+
+if (-not $Command -and $FunctionName -match '\s') {
+    $Parts = $FunctionName -split '\s+', 2
+    $FunctionName = $Parts[0]
+
+    if ($Parts.Count -gt 1) {
+        $Command = $Parts[1]
+    }
+}
+
+function Get-Version {
+$Banner = @"
+      ___           ___           ___           ___           ___           ___           ___       ___     
+     /\  \         /\  \         /\__\         /\  \         /\__\         /\  \         /\__\     /\  \    
+    /::\  \       /::\  \       /::|  |       /::\  \       /:/  /        /::\  \       /:/  /    /::\  \   
+   /:/\ \  \     /:/\:\  \     /:|:|  |      /:/\:\  \     /:/__/        /:/\:\  \     /:/  /    /:/\:\  \  
+  _\:\~\ \  \   /::\~\:\  \   /:/|:|  |__   /:/  \:\__\   /::\  \ ___   /::\~\:\  \   /:/  /    /::\~\:\  \ 
+ /\ \:\ \ \__\ /:/\:\ \:\__\ /:/ |:| /\__\ /:/__/ \:|__| /:/\:\  /\__\ /:/\:\ \:\__\ /:/__/    /:/\:\ \:\__\
+ \:\ \:\ \/__/ \:\~\:\ \/__/ \/__|:|/:/  / \:\  \ /:/  / \/__\:\/:/  / \:\~\:\ \/__/ \:\  \    \/__\:\/:/  /
+  \:\ \:\__\    \:\ \:\__\       |:/:/  /   \:\  /:/  /       \::/  /   \:\ \:\__\    \:\  \        \::/  / 
+   \:\/:/  /     \:\ \/__/       |::/  /     \:\/:/  /        /:/  /     \:\ \/__/     \:\  \        \/__/  
+    \::/  /       \:\__\         /:/  /       \::/__/        /:/  /       \:\__\        \:\__\              
+     \/__/         \/__/         \/__/         ~~            \/__/         \/__/         \/__/                                         
+ 
+ [+] Multi-Function Response Utility
+ [+] v17/6/2026
+ [+] Author: Thomas Papaloukas
+"@
+
+    Write-Host $Banner -ForegroundColor Magenta
+    Write-Host ""
+}
+
+function Run-Command {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$Command,
+        [string[]]$Arguments
+    )
+
+    & $Command @Arguments
+}
+
+function Run-EncodedCommand {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$EncodedCommand
+    )
+    try {
+        $DecodedCommand = ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($EncodedCommand)))
+        Write-Output "Decoded command: $DecodedCommand`n"
+        Invoke-Expression $DecodedCommand
+    }
+    catch {
+        Write-Error "Failed to run encoded command."
+    }
+}
+
+function Run-ZoneIdentifier {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath
+    )
+
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        Write-Error "File not found: $FilePath"
+        return
+    }
+
+    try {
+        $zoneContent = Get-Content -LiteralPath $FilePath -Stream Zone.Identifier -ErrorAction Stop
+        Write-Output "Zone.Identifier found for: $FilePath`n"
+        $zoneContent
+    }
+    catch {
+        Write-Output "No Zone.Identifier stream found for: $FilePath"
+    }
+}
+
+function Run-RunMRU {
+    $BaseSubKey = "Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU"
+    $ProfileList = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
+
+    $UserHives = Get-ChildItem Registry::HKEY_USERS |
+        Where-Object {
+            $_.PSChildName -match '^S-1-5-21-' -and
+            $_.PSChildName -notmatch '_Classes$'
+        }
+
+    if (-not $UserHives) {
+        Write-Error "No loaded user hives found under HKEY_USERS."
+        return
+    }
+
+    foreach ($Hive in $UserHives) {
+        $Sid = $Hive.PSChildName
+        $RegPath = "Registry::HKEY_USERS\$Sid\$BaseSubKey"
+        $ProfilePath = $null
+
+        try {
+            $ProfilePath = (Get-ItemProperty -Path "$ProfileList\$Sid" -ErrorAction Stop).ProfileImagePath
+        }
+        catch { }
+
+        if (-not (Test-Path -LiteralPath $RegPath)) {
+            continue
+        }
+
+        Write-Output "User SID      : $Sid"
+        if ($ProfilePath) {
+            Write-Output "Profile Path  : $ProfilePath"
+        }
+        Write-Output "Registry Path : $RegPath"
+        Write-Output ""
+
+        $Item = Get-ItemProperty -LiteralPath $RegPath
+
+        foreach ($Property in $Item.PSObject.Properties) {
+            if ($Property.Name -like "PS*") { continue }
+            if ($Property.Name -eq "MRUList") { continue }
+
+            $CleanProperty = ([string]$Property.Value) -replace '(\\1|`u0001)$',''
+            Write-Output "$($Property.Name) = $CleanProperty"
+        }
+
+        Write-Output ""
+    }
+}
+
+<#
+Avoid HKEY_CURRENT_USER, since it is context-dependent. In your local console, 
+it points to your logged-on user hive (nt authority\system). In MDE Live Response, 
+it points to the user context of the process/session that Live Response is using. 
+Instead use HKEY_USERS\<SID>\...
+
+Locally this should also work: SendHelp Run-RegistryQuery "HKCU:\SOFTWARE\POCKey"
+
+E.g., run SendHelp "Run-RegistryQuery HKEY_USERS\S-1-5-21-1436740266-4157994359-4067780582-1000\SOFTWARE\POCKey"
+#>
+function Run-RegistryQuery {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$RegistryPath
+    )
+
+    $RegistryPath = $RegistryPath.Trim()
+
+    if ($RegistryPath -notmatch '^(Registry::|HKLM:\\|HKCU:\\|HKCR:\\|HKU:\\|HKCC:\\)') {
+        $RegistryPath = "Registry::$RegistryPath"
+    }
+
+    if (-not (Test-Path -LiteralPath $RegistryPath)) {
+        Write-Error "Registry key not found: $RegistryPath"
+        return
+    }
+
+    $Item = Get-ItemProperty -LiteralPath $RegistryPath
+
+    Write-Output "Registry Path: $RegistryPath"
+    Write-Output "`nKey Name  | Key Value`n_____________________`n"
+
+    $Item.PSObject.Properties |
+        Where-Object {
+            $_.Name -notlike "PS*"
+        } |
+        ForEach-Object {
+            Write-Output "$($_.Name) = $($_.Value)"
+        }
+}
+
+function Run-Prefetch {
+    $PrefetchPath = "C:\Windows\Prefetch"
+
+    if (-not (Test-Path -LiteralPath $PrefetchPath)) {
+        Write-Error "Prefetch directory not found: $PrefetchPath"
+        return
+    }
+
+    Get-ChildItem -LiteralPath $PrefetchPath -Filter "*.pf" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object Name, LastWriteTime, Length |
+        Format-Table -AutoSize
+}
+
+function Run-PrefetchQuery {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$ProcessName
+    )
+
+    $PrefetchPath = "C:\Windows\Prefetch"
+
+    if (-not (Test-Path -LiteralPath $PrefetchPath)) {
+        Write-Error "Prefetch directory not found: $PrefetchPath"
+        return
+    }
+
+    $Filter = "*$($ProcessName.ToUpper())*.pf"
+
+    $Results = Get-ChildItem -LiteralPath $PrefetchPath -Filter $Filter -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+
+    if (-not $Results) {
+        Write-Output "No prefetch files found matching: $ProcessName"
+        return
+    }
+
+    $Results | Select-Object Name, LastWriteTime, Length | Format-Table -AutoSize
+}
+
+function Run-Processes {
+    Get-Process |
+        Sort-Object ProcessName |
+        Select-Object Name, Id, CPU, WS |
+        Format-Table -AutoSize
+}
+
+function Run-MiniDumpProcess {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$ProcessID
+    )
+    
+    #rundll32.exe C:\Windows\System32\comsvcs.dll, MiniDump $ProcessID $Env:TEMP\process_dump.bin full
+}
+
+Write-Host "_________________________________________`n`nRoger that. Cooking output (robot noises) `n_________________________________________`n"
+
+switch ($FunctionName) {
+
+    "Get-Version" {
+        Get-Version
+    }
+
+    "Run-Command" {
+        if (-not $Command) {
+            Write-Error "Run-Command requires a command argument."
+            exit 1
+        }
+
+        Run-Command $Command $CommandArgs
+    }
+
+    "Run-EncodedCommand" {
+        if (-not $Command) {
+            Write-Error "Run-DecodedCommandPreview requires an encoded command."
+            exit 1
+        }
+
+        Run-EncodedCommand $Command
+    }
+
+    "Run-ZoneIdentifier" {
+        Write-Host ""
+
+        if (-not $Command) {
+            Write-Error "Run-ZoneIdentifier requires a file path."
+            exit 1
+        }
+
+        Run-ZoneIdentifier $Command
+    }
+
+    "Run-RunMRU" {
+        Run-RunMRU
+    }
+
+    "Run-RegistryQuery" {
+        if (-not $Command) {
+            Write-Error "Run-RegistryQuery requires a registry path."
+            Write-Error 'Example: run SendHelp "Run-RegistryQuery HKEY_USERS\S-1-5-21-1436740266-4157994359-4067780582-1000\SOFTWARE\POCKey"'
+            exit 1
+        }
+
+        Run-RegistryQuery $Command
+    }
+
+    "Run-Prefetch" {
+        Run-Prefetch
+    }
+
+    "Run-PrefetchQuery" {
+        if (-not $Command) {
+            Write-Error 'Usage: run SendHelp "Run-PrefetchQuery <process name>"'
+            exit 1
+        }
+
+        Run-PrefetchQuery $Command
+    }
+
+    "Run-Processes" {
+        Run-Processes
+    }
+
+    "Run-MiniDumpProcess" {
+        if (-not $Command) {
+            Write-Error "Run-MiniDumpProcess requires a Process ID."
+            exit 1
+        }
+
+        Run-MiniDumpProcess $Command
+    }
+
+    default { Write-Error "Unknown function: $FunctionName" }
+}
